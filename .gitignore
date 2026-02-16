@@ -12,6 +12,9 @@ venv/
 # Models
 *.pt
 
+# Database
+backend/energy.db
+
 # OS
 .DS_Store
 Thumbs.db
