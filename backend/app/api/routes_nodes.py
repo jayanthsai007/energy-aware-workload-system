@@ -20,6 +20,12 @@ def get_db():
     finally:
         db.close()
 
+@router.get("/active-nodes")
+def get_active_nodes(db: Session = Depends(get_db)):
+    active_nodes = db.query(Node).filter(Node.status == "online").all()
+    return active_nodes
+
+
 
 @router.post("/register-node", response_model=NodeRegistrationResponse)
 def register_node(
