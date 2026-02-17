@@ -5,6 +5,8 @@ from app.database import engine, Base
 from app.models.device_metrics_model import DeviceMetricsDB
 from app.models.node_model import Node
 from app.api.routes_heartbeat import router as heartbeat_router
+from app.api.routes_execution import router as execution_router
+
 
 
 app = FastAPI()
@@ -18,4 +20,6 @@ def root():
 app.include_router(metrics_router)
 app.include_router(nodes_router)
 app.include_router(heartbeat_router)
+app.include_router(execution_router)
+
 
