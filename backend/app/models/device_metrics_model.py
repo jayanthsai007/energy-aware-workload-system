@@ -13,5 +13,6 @@ class DeviceMetricsDB(Base):
     cpu = Column(Float, nullable=False)
     memory = Column(Float, nullable=False)
     temperature = Column(Float, nullable=False)
+    power = Column(Float, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
