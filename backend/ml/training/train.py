@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import sys
 import os
+import joblib
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
@@ -78,6 +80,14 @@ X_test_ts, X_test_static, X_test_script = prepare_inputs(X_test)
 
 y_train = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
 y_test = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
+
+# -----------------------
+# Save Scaler (IMPORTANT)
+# -----------------------
+os.makedirs("../saved_models", exist_ok=True)
+joblib.dump(scaler, "../saved_models/scaler_v1.pkl")
+print("Scaler saved successfully")
+
 
 # -----------------------
 # Model Setup
