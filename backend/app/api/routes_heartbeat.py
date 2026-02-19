@@ -6,6 +6,8 @@ from app.database import SessionLocal
 from app.models.node_model import Node
 from app.models.device_metrics_model import DeviceMetricsDB
 from app.schemas.heartbeat_schema import HeartbeatRequest
+from app.database import get_db
+
 
 router = APIRouter()
 
@@ -13,12 +15,12 @@ HEARTBEAT_TIMEOUT_SECONDS = 15
 
 
 # Dependency to get DB session
-def get_db():
+'''def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        db.close()'''
 
 
 @router.post("/heartbeat")

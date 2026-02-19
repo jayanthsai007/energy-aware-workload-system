@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Integer, Float
 from datetime import datetime
 from app.database import Base
 
@@ -7,11 +7,17 @@ from app.database import Base
 class Node(Base):
     __tablename__ = "nodes"
 
-    node_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    node_id = Column(String, primary_key=True, index=True)
     ip_address = Column(String, nullable=False)
-    status = Column(String, default="online")
-    last_heartbeat = Column(DateTime, default=datetime.utcnow)
+
+    cpu_cores = Column(Integer, nullable=False)
+    total_memory = Column(Float, nullable=False)
+    base_frequency = Column(Float, nullable=False)
+
+    status = Column(String, default="offline")
     created_at = Column(DateTime, default=datetime.utcnow)
+    last_heartbeat = Column(DateTime, default=datetime.utcnow)
+
 
 '''What This Does
 
