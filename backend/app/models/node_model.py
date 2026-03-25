@@ -2,12 +2,19 @@ import uuid
 from sqlalchemy import Column, String, DateTime, Integer, Float
 from datetime import datetime
 from app.database import Base
+from sqlalchemy.orm import relationship
 
 
 class Node(Base):
     __tablename__ = "nodes"
 
-    node_id = Column(String, primary_key=True, index=True)
+    node_id = Column(
+        String,
+        primary_key=True,
+        index=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
     ip_address = Column(String, nullable=False)
 
     cpu_cores = Column(Integer, nullable=False)
@@ -17,6 +24,7 @@ class Node(Base):
     status = Column(String, default="offline")
     created_at = Column(DateTime, default=datetime.utcnow)
     last_heartbeat = Column(DateTime, default=datetime.utcnow)
+    metrics = relationship("Metrics", back_populates="node")
 
 
 '''What This Does

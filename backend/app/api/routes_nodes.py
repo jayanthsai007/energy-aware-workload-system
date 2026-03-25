@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
-
+from uuid import uuid4
 from app.database import SessionLocal
 from app.models.node_model import Node
 from app.schemas.node_schema import (
@@ -20,11 +20,11 @@ def get_db():
     finally:
         db.close()
 
+
 @router.get("/active-nodes")
 def get_active_nodes(db: Session = Depends(get_db)):
     active_nodes = db.query(Node).filter(Node.status == "online").all()
     return active_nodes
-
 
 
 @router.post("/register-node", response_model=NodeRegistrationResponse)
@@ -32,9 +32,11 @@ def register_node(
     node_data: NodeRegistrationRequest,
     db: Session = Depends(get_db)
 ):
-    # Create new node entry (UUID auto-generated)
     new_node = Node(
         ip_address=node_data.ip_address,
+        cpu_cores=node_data.cpu_cores,
+        total_memory=node_data.total_memory,
+        base_frequency=node_data.base_frequency,
         status="online",
         last_heartbeat=datetime.utcnow()
     )
