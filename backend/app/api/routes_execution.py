@@ -28,7 +28,8 @@ def plan_execution(data: ExecutionPlanRequest, db: Session = Depends(get_db)):
     active_nodes = db.query(Node).filter(Node.status == "online").all()
 
     if not active_nodes:
-        raise HTTPException(status_code=404, detail="No active nodes available")
+        raise HTTPException(
+            status_code=404, detail="No active nodes available")
 
     best_node = None
     best_score = float("inf")

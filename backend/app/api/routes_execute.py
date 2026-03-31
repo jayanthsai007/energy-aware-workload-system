@@ -21,7 +21,8 @@ def execute(payload: ExecutionRequest, db: Session = Depends(get_db)):
     nodes = db.query(Node).filter(Node.status == "online").all()
 
     if not nodes:
-        raise HTTPException(status_code=400, detail="No active nodes available")
+        raise HTTPException(
+            status_code=400, detail="No active nodes available")
 
     best_node = None
     best_score = float("inf")
