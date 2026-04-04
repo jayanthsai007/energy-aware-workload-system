@@ -1,71 +1,51 @@
+from ml.models.cnn_lstm_model import CNNLSTMModel
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
-import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-import sys
 import os
 import joblib
+import sys
+
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../")))
 
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
-
-
-from ml.models.cnn_lstm_model import CNNLSTMModel
-
-# -----------------------
-# Configuration
-# -----------------------
-DATA_PATH = "synthetic_dataset.csv"
-MODEL_SAVE_PATH = "../saved_models/model_v1.pt"
-
+# CONFIG
 TIME_STEPS = 10
 TS_FEATURES = 4
 STATIC_FEATURES = 3
 SCRIPT_FEATURES = 6
+TOTAL_FEATURES = 49
 
-EPOCHS = 30
+EPOCHS = 10
 BATCH_SIZE = 32
-LEARNING_RATE = 0.001
+LR = 0.001
+
+MODEL_PATH = "ml/saved_models/model_latest.pt"
+SCALER_PATH = "ml/saved_models/scaler_latest.pkl"
 
 
 # -----------------------
-# Load Dataset
+# CLEAN DATASET
 # -----------------------
-df = pd.read_csv(DATA_PATH)
+def clean_dataset(df):
+    drop_cols = ["execution_time", "energy", "node_id"]
+    df = df.drop([c for c in drop_cols if c in df.columns], axis=1)
+    df = df.dropna()
+    return df
 
-X = df.drop("composite_score", axis=1).values
-y = df["composite_score"].values
-
-# -----------------------
-# Split Dataset
-# -----------------------
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
 
 # -----------------------
-# Feature Scaling
-# -----------------------
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
-
-# -----------------------
-# Convert to Tensors
+# PREP INPUT
 # -----------------------
 def prepare_inputs(X):
-    # Time series part
     ts_size = TIME_STEPS * TS_FEATURES
-    ts = X[:, :ts_size]
-    ts = ts.reshape(-1, TIME_STEPS, TS_FEATURES)
 
-    # Static part
+    ts = X[:, :ts_size].reshape(-1, TIME_STEPS, TS_FEATURES)
     static = X[:, ts_size:ts_size + STATIC_FEATURES]
-
-    # Script part
     script = X[:, ts_size + STATIC_FEATURES:]
 
     return (
@@ -75,77 +55,121 @@ def prepare_inputs(X):
     )
 
 
-X_train_ts, X_train_static, X_train_script = prepare_inputs(X_train)
-X_test_ts, X_test_static, X_test_script = prepare_inputs(X_test)
+# -----------------------
+# LOAD INITIAL DATASETS
+# -----------------------
+def load_initial_datasets():
+    dfs = []
 
-y_train = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
-y_test = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
+    if os.path.exists("ml/training/synthetic_dataset.csv"):
+        df_syn = pd.read_csv("ml/training/synthetic_dataset.csv")
+        dfs.append(df_syn)
+
+    if os.path.exists("ml/training/combined_dataset.csv"):
+        df_real = pd.read_csv("ml/training/combined_dataset.csv")
+        df_real = pd.concat([df_real]*2, ignore_index=True)  # weight real data
+        dfs.append(df_real)
+
+    if not dfs:
+        return None
+
+    df = pd.concat(dfs, ignore_index=True)
+    return df
+
 
 # -----------------------
-# Save Scaler (IMPORTANT)
+# TRAIN MODEL
 # -----------------------
-os.makedirs("../saved_models", exist_ok=True)
-joblib.dump(scaler, "../saved_models/scaler_v1.pkl")
-print("Scaler saved successfully")
+def train_model(df):
 
+    if df is None or len(df) < 50:
+        print("⚠️ Not enough data")
+        return
 
-# -----------------------
-# Model Setup
-# -----------------------
-model = CNNLSTMModel(
-    time_steps=TIME_STEPS,
-    ts_features=TS_FEATURES,
-    static_features=STATIC_FEATURES,
-    script_features=SCRIPT_FEATURES,
-)
+    df = clean_dataset(df)
 
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    if "composite_score" not in df.columns:
+        print("❌ Missing target")
+        return
 
-# -----------------------
-# Training Loop
-# -----------------------
-for epoch in range(EPOCHS):
-    model.train()
+    if len(df.columns) != TOTAL_FEATURES + 1:
+        print("❌ Feature mismatch:", len(df.columns))
+        return
 
-    permutation = torch.randperm(X_train_ts.size()[0])
+    X = df.drop("composite_score", axis=1).values
+    y = df["composite_score"].values
 
-    epoch_loss = 0
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-    for i in range(0, X_train_ts.size()[0], BATCH_SIZE):
-        indices = permutation[i:i+BATCH_SIZE]
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
 
-        batch_ts = X_train_ts[indices]
-        batch_static = X_train_static[indices]
-        batch_script = X_train_script[indices]
-        batch_y = y_train[indices]
+    os.makedirs("ml/saved_models", exist_ok=True)
+    joblib.dump(scaler, SCALER_PATH)
 
-        optimizer.zero_grad()
+    X_train_ts, X_train_static, X_train_script = prepare_inputs(X_train)
+    X_test_ts, X_test_static, X_test_script = prepare_inputs(X_test)
 
-        outputs = model(batch_ts, batch_static, batch_script)
+    y_train = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
+    y_test = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
 
-        loss = criterion(outputs, batch_y)
-        loss.backward()
-        optimizer.step()
+    model = CNNLSTMModel(TIME_STEPS, TS_FEATURES,
+                         STATIC_FEATURES, SCRIPT_FEATURES)
 
-        epoch_loss += loss.item()
+    optimizer = optim.Adam(model.parameters(), lr=LR)
+    loss_fn = nn.MSELoss()
 
-    print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {epoch_loss:.4f}")
+    print("🚀 Training...")
+
+    for epoch in range(EPOCHS):
+        model.train()
+        perm = torch.randperm(X_train_ts.size(0))
+        loss_total = 0
+
+        for i in range(0, len(perm), BATCH_SIZE):
+            idx = perm[i:i+BATCH_SIZE]
+
+            out = model(
+                X_train_ts[idx],
+                X_train_static[idx],
+                X_train_script[idx]
+            )
+
+            loss = loss_fn(out, y_train[idx])
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            loss_total += loss.item()
+
+        print(f"Epoch {epoch+1}: {loss_total:.4f}")
 
 # -----------------------
 # Evaluation
 # -----------------------
-model.eval()
-with torch.no_grad():
-    test_outputs = model(X_test_ts, X_test_static, X_test_script)
-    test_loss = criterion(test_outputs, y_test)
+    model.eval()
+    with torch.no_grad():
+        test_outputs = model(X_test_ts, X_test_static, X_test_script)
+        test_loss = loss_fn(test_outputs, y_test)
 
-print(f"Test Loss: {test_loss.item():.4f}")
+    print(f"✅ Test Loss: {test_loss.item():.6f}")
+
+    print("\n📊 Sample predictions vs actual:\n")
+
+    for i in range(min(5, len(test_outputs))):
+        print(
+            f"Predicted: {test_outputs[i].item():.6f} | Actual: {y_test[i].item():.6f}"
+        )
+
+    torch.save(model.state_dict(), MODEL_PATH)
+    print("💾 Model saved")
+
 
 # -----------------------
-# Save Model
+# MAIN
 # -----------------------
-os.makedirs("../saved_models", exist_ok=True)
-torch.save(model.state_dict(), MODEL_SAVE_PATH)
-
-print(f"Model saved to {MODEL_SAVE_PATH}")
+if __name__ == "__main__":
+    df = load_initial_datasets()
+    train_model(df)

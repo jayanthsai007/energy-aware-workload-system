@@ -10,9 +10,9 @@ class Metrics(Base):
     id = Column(Integer, primary_key=True, index=True)
     node_id = Column(String, ForeignKey("nodes.node_id"))
 
-    cpu_usage = Column(Float)
-    memory_usage = Column(Float)
-
+    cpu_usage = Column(Float, default=0)
+    memory_usage = Column(Float, default=0)
+    temperature = Column(Float, default=0)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     # 🔗 relationship

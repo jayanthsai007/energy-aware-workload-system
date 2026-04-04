@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
-
 from app.schemas.device_metrics_schema import DeviceMetrics
 from app.database import SessionLocal
 from app.services.workload_classifier import classify_workload
@@ -19,7 +18,21 @@ def get_db():
     finally:
         db.close()
 
-    print(DeviceMetrics.model_fields)
+
+@router.get("/metrics")
+def get_metrics(db: Session = Depends(get_db)):
+    metrics = db.query(Metrics).order_by(
+        Metrics.timestamp.desc()).limit(50).all()
+
+    return [
+        {
+            "cpu": m.cpu_usage,
+            "memory": m.memory_usage,
+            "temperature": m.temperature,
+            "timestamp": m.timestamp
+        }
+        for m in metrics
+    ]
 
 
 @router.post("/metrics")

@@ -8,6 +8,9 @@ from sqlalchemy.orm import relationship
 class Node(Base):
     __tablename__ = "nodes"
 
+    # =========================
+    # PRIMARY ID
+    # =========================
     node_id = Column(
         String,
         primary_key=True,
@@ -15,16 +18,46 @@ class Node(Base):
         default=lambda: str(uuid.uuid4())
     )
 
+    # =========================
+    # UNIQUE MACHINE ID
+    # =========================
+    agent_id = Column(String, unique=True, index=True, nullable=False)
+
+    # =========================
+    # NETWORK INFO
+    # =========================
     ip_address = Column(String, nullable=False)
 
+    # =========================
+    # HARDWARE INFO
+    # =========================
     cpu_cores = Column(Integer, nullable=False)
-    total_memory = Column(Float, nullable=False)
-    base_frequency = Column(Float, nullable=False)
+    cpu_frequency = Column(Float, nullable=False)
 
-    status = Column(String, default="offline")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    total_memory = Column(Float, nullable=False)
+
+    total_storage = Column(Float)
+    free_storage = Column(Float)
+
+    os = Column(String)
+    architecture = Column(String)
+
+    # =========================
+    # STATUS TRACKING
+    # =========================
+    status = Column(String, default="ACTIVE")
     last_heartbeat = Column(DateTime, default=datetime.utcnow)
+
+    # =========================
+    # METADATA
+    # =========================
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # =========================
+    # RELATIONSHIPS
+    # =========================
     metrics = relationship("Metrics", back_populates="node")
+    executions = relationship("ExecutionMetrics", back_populates="node")
 
 
 '''What This Does
