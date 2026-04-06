@@ -1,3 +1,10 @@
+import os
+import sys
+
+# Add backend directory to path BEFORE imports
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../")))
+
 from ml.models.cnn_lstm_model import CNNLSTMModel
 import torch
 import torch.nn as nn
@@ -5,12 +12,7 @@ import torch.optim as optim
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-import os
 import joblib
-import sys
-
-sys.path.append(os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../")))
 
 
 # CONFIG
