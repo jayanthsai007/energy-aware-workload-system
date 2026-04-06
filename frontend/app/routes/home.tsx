@@ -1,13 +1,16 @@
-import type { Route } from "./+types/home";
-import { Welcome } from "../welcome/welcome";
+import { NodeGrid } from "~/components/node-grid";
 
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
+    { title: "Node Dashboard - Energy Aware" },
+    { name: "description", content: "Monitor your distributed nodes and their performance" },
   ];
 }
 
 export default function Home() {
-  return <Welcome />;
+  return (
+    <div className="py-8">
+      <NodeGrid />
+    </div>
+  );
 }
