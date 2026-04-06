@@ -80,3 +80,11 @@ app.include_router(node_execution_router)
 app.include_router(execute_router)
 app.include_router(retrain_router)
 app.include_router(execution_metrics_router)
+
+
+# =========================
+# ENTRY POINT
+# =========================
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
