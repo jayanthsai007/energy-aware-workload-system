@@ -26,7 +26,9 @@ class Node(Base):
     # =========================
     # NETWORK INFO
     # =========================
-    ip_address = Column(String, nullable=False)
+    ip_address = Column(String, nullable=True,
+                        default=None)  # Optional metadata
+    # NOTE: ws_connected is NOT persisted - it's runtime state tracked in connection_manager
 
     # =========================
     # HARDWARE INFO

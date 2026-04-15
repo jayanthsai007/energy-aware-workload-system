@@ -1,207 +1,182 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
-
-from api import (
-    get_nodes,
-    get_metrics,
-    get_executions
-)
+import plotly.graph_objects as go
+import time
 
 st.set_page_config(layout="wide")
 
-# =========================
-# 🎨 MODERN UI STYLING
-# =========================
+# ---------------- CSS ----------------
 st.markdown("""
 <style>
-[data-testid="stAppViewContainer"] {
-    background-color: #0f1116;
-    color: white;
+body {
+    background-color: #0f172a;
+    color: #e2e8f0;
 }
-
-/* Card */
 .card {
-    background-color: #151922;
+    background: linear-gradient(145deg, #1e293b, #0f172a);
     padding: 15px;
-    border-radius: 12px;
-    border: 1px solid #2a2f3a;
-    transition: 0.2s;
+    border-radius: 16px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
-.card:hover {
-    border: 1px solid #4da3ff;
-    transform: scale(1.02);
+.small {
+    font-size: 12px;
+    color: #94a3b8;
 }
-
-/* Status dots */
-.green {color: #00ff9f;}
-.yellow {color: #ffd166;}
-.red {color: #ff4b4b;}
+.alert {
+    color: #f87171;
+    font-weight: bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# 🔁 SESSION STATE NAV
-# =========================
-if "view" not in st.session_state:
-    st.session_state.view = "home"
+st.title("⚡ Energy-Aware Workload System")
 
-if "selected_node" not in st.session_state:
-    st.session_state.selected_node = None
+# ---------------- Node Data ----------------
+nodesData = [
+    {"name": "Node 1", "cpu": 69, "color": "#22c55e"},
+    {"name": "Node 2", "cpu": 83, "color": "#facc15"},
+    {"name": "Node 3", "cpu": 95, "color": "#ef4444"},
+    {"name": "Node 4", "cpu": 76, "color": "#fb923c"},
+]
 
-# =========================
-# 📡 SAFE FETCH
-# =========================
-def safe_fetch(func):
-    try:
-        return func()
-    except:
-        return []
+# Initialize session state
+if "node_temps" not in st.session_state:
+    st.session_state.node_temps = [
+        list(np.random.uniform(60, 80, 10)) for _ in range(len(nodesData))
+    ]
 
-nodes = safe_fetch(get_nodes)
-metrics = safe_fetch(get_metrics)
-executions = safe_fetch(get_executions)
+if "main_data" not in st.session_state:
+    st.session_state.main_data = [2, 2.5, 2.7, 3, 3.8, 4.2, 4.5, 4.8, 5, 5.5]
 
-df_nodes = pd.DataFrame(nodes) if nodes else pd.DataFrame()
-df_metrics = pd.DataFrame(metrics) if metrics else pd.DataFrame()
-df_exec = pd.DataFrame(executions) if executions else pd.DataFrame()
+# ---------------- Nodes Grid ----------------
+cols = st.columns(4)
 
-# =========================
-# 🧩 HOME → NODE GRID
-# =========================
-def show_home():
+node_placeholders = []
 
-    st.title("🧠 Node Dashboard")
+for i, node in enumerate(nodesData):
+    with cols[i]:
+        placeholder = st.empty()
+        node_placeholders.append((placeholder, node, i))
 
-    if df_nodes.empty:
-        st.warning("No nodes connected")
-        return
+# ---------------- Stats ----------------
+st.markdown("###")
 
-    cols = st.columns(3)
+col1, col2, col3 = st.columns(3)
 
-    for i, node in df_nodes.iterrows():
+with col1:
+    st.markdown("""
+    <div class="card">
+        <div class="alert">⚠ Background Problems</div>
+        <h2>2 Issues Detected</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
-        with cols[i % 3]:
+with col2:
+    st.markdown("""
+    <div class="card">
+        <div>Nodes Registered</div>
+        <h2>8 Total Nodes</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
+with col3:
+    st.markdown("""
+    <div class="card">
+        <div>Nodes Active</div>
+        <h2>8 Total Nodes</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
-                node_id = node.get("agent_id", f"Node-{i}")
-                status = str(node.get("status", "unknown")).lower()
+# ---------------- Bottom Section ----------------
+col_main, col_input = st.columns([2, 1])
 
-                # Status color
-                if status in ["active", "online"]:
-                    color = "green"
-                else:
-                    color = "red"
+main_chart_placeholder = col_main.empty()
 
-                st.markdown(f"### {node_id}")
-                st.markdown(f"Status: <span class='{color}'>● {status}</span>", unsafe_allow_html=True)
+with col_input:
+    st.markdown("""
+    <div class="card">
+        <h3>Input Type</h3>
+        <p><b>File:</b> data_sample.json</p>
+        <p class="small">(batch, parameters...)</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-                # Dummy / fallback metrics
-                cpu = np.random.randint(10, 90)
-                mem = np.random.randint(20, 95)
+# ---------------- LIVE LOOP ----------------
+while True:
 
-                st.progress(cpu / 100)
-                st.caption(f"CPU: {cpu}%")
+    # ----- Update Node Charts -----
+    for placeholder, node, i in node_placeholders:
 
-                st.progress(mem / 100)
-                st.caption(f"Memory: {mem}%")
+        # update data
+        data = st.session_state.node_temps[i]
+        data.append(np.random.uniform(60, 80))
+        data.pop(0)
 
-                # Mini chart
-                chart_data = pd.DataFrame({
-                    "cpu": np.random.randint(20, 80, 20)
-                })
-                st.line_chart(chart_data)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            y=data,
+            mode='lines',
+            line=dict(color=node["color"]),
+        ))
 
-                # Button → Deep Dive
-                if st.button("View Details", key=f"btn_{i}"):
-                    st.session_state.view = "detail"
-                    st.session_state.selected_node = node_id
+        fig.update_layout(
+            height=120,
+            margin=dict(l=0, r=0, t=0, b=0),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
 
-                st.markdown('</div>', unsafe_allow_html=True)
+        # progress circle HTML
+        progress_html = f"""
+        <div style="
+            width:70px;height:70px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            background: conic-gradient({node['color']} 0% {node['cpu']}%, #1e293b {node['cpu']}%);
+        ">
+            {node['cpu']}%
+        </div>
+        """
 
+        with placeholder.container():
+            st.markdown(
+                f"<div class='card'><h3>{node['name']}</h3>", unsafe_allow_html=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-# =========================
-# 🔍 NODE DETAIL VIEW
-# =========================
-def show_detail():
+            c1, c2 = st.columns([2, 1])
 
-    node_id = st.session_state.selected_node
+            with c1:
+                st.markdown("""
+                <p class="small">Temperature</p>
+                <p>Power: 42.1W</p>
+                <p>Voltage: 1.15V</p>
+                """, unsafe_allow_html=True)
 
-    st.button("⬅ Back", on_click=lambda: st.session_state.update({"view": "home"}))
+            with c2:
+                st.markdown(progress_html, unsafe_allow_html=True)
 
-    st.title(f"🔍 Node Detail: {node_id}")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-    # =========================
-    # 📊 TOP METRICS
-    # =========================
-    col1, col2, col3 = st.columns(3)
+    # ----- Update Main Chart -----
+    st.session_state.main_data.append(np.random.uniform(4, 6))
+    st.session_state.main_data.pop(0)
 
-    cpu = np.random.randint(20, 90)
-    mem = np.random.randint(20, 90)
-    energy = np.random.randint(50, 200)
+    fig_main = go.Figure()
+    fig_main.add_trace(go.Scatter(
+        y=st.session_state.main_data,
+        mode='lines',
+        fill='tozeroy'
+    ))
 
-    col1.metric("CPU Usage", f"{cpu}%")
-    col2.metric("Memory Usage", f"{mem}%")
-    col3.metric("Energy", f"{energy} W")
+    fig_main.update_layout(
+        title="Nodes Performance",
+        height=300,
+        margin=dict(l=10, r=10, t=40, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)"
+    )
 
-    # =========================
-    # 📈 PERFORMANCE GRAPHS
-    # =========================
-    st.subheader("Performance")
+    main_chart_placeholder.plotly_chart(fig_main, use_container_width=True)
 
-    graph_data = pd.DataFrame({
-        "cpu": np.random.randint(20, 90, 50),
-        "memory": np.random.randint(30, 95, 50)
-    })
-
-    st.line_chart(graph_data)
-
-    # =========================
-    # ⚙️ DEVICE SPECS (VISUAL STYLE)
-    # =========================
-    st.subheader("Device Specifications")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.info("🧠 CPU: Intel i7")
-    col2.info("💾 RAM: 16 GB")
-    col3.info("🎮 GPU: None")
-    col4.info("🖥 OS: Linux")
-
-    # =========================
-    # 📋 TASKS
-    # =========================
-    st.subheader("Tasks")
-
-    if not df_exec.empty:
-        st.dataframe(df_exec, use_container_width=True)
-
-    # =========================
-    # 🧠 MODEL INPUT
-    # =========================
-    st.subheader("Model Input")
-
-    sample_input = {
-        "cpu": cpu,
-        "memory": mem,
-        "energy": energy
-    }
-
-    st.json(sample_input)
-
-
-# =========================
-# 🚦 ROUTER
-# =========================
-if st.session_state.view == "home":
-    show_home()
-else:
-    show_detail()
-
-# =========================
-# ✨ FOOTER
-# =========================
-st.markdown("---")
-st.caption("AI Energy-Aware Scheduler Dashboard")
+    time.sleep(2)

@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.node_model import Node
+from app.models.task_model import Task
 from app.schemas.execution_schema import (
     ExecutionPlanRequest,
-    ExecutionPlanResponse
+    ExecutionPlanResponse,
+    TaskStatusResponse
 )
 
 # 🔥 ML imports
@@ -94,4 +96,26 @@ def plan_execution(data: ExecutionPlanRequest, db: Session = Depends(get_db)):
     return ExecutionPlanResponse(
         selected_node_id=best_node.node_id,
         message=f"Selected using ML (score={best_score:.4f})"
+    )
+
+
+# ---------------------------
+# 🔥 Task Status API
+# ---------------------------
+@router.get("/task/{task_id}", response_model=TaskStatusResponse)
+def get_task_status(task_id: str, db: Session = Depends(get_db)):
+
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return TaskStatusResponse(
+        task_id=task.id,
+        status=task.status,
+        assigned_node=task.assigned_node,
+        output=task.output,
+        error=task.error,
+        execution_time=task.execution_time,
+        created_at=task.created_at
     )

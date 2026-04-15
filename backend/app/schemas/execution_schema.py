@@ -44,9 +44,14 @@ class ExecutionRequest(BaseModel):
     script_content: str = Field(..., max_length=10000)
     language: Literal["python", "java"]
 
+    # optinal (auto - generated if not provided)
+    file_size: Optional[float] = None
+    line_count: Optional[int] = None
+
     # 🔹 Optional tracking (keep if needed)
     script_id: Optional[str] = None
     request_id: Optional[str] = None
+    task_id: Optional[str] = None
     request_timestamp: Optional[datetime] = None
 
 
@@ -61,3 +66,16 @@ class ExecutionResponse(BaseModel):
     output: str
     error: str
     execution_time: float
+
+
+# =========================
+# TASK STATUS
+# =========================
+class TaskStatusResponse(BaseModel):
+    task_id: str
+    status: str  # pending, running, completed, failed
+    assigned_node: Optional[str] = None
+    output: Optional[str] = None
+    error: Optional[str] = None
+    execution_time: Optional[float] = None
+    created_at: datetime

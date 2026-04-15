@@ -6,6 +6,7 @@ from app.database import SessionLocal
 from app.services.workload_classifier import classify_workload
 from app.models.node_model import Node
 from app.models.metrics_model import Metrics
+from app.websocket.event_dispatcher import dispatch_event
 
 router = APIRouter()
 
@@ -59,7 +60,18 @@ def receive_metrics(metrics: DeviceMetrics, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_metrics)
 
-    # ✅ 4. Classify workload
+    # 🔥 4. REAL-TIME BROADCAST (NEW)
+    dispatch_event({
+        "type": "metrics",
+        "data": {
+            "node_id": metrics.node_id,
+            "cpu": metrics.cpu,
+            "memory": metrics.memory,
+            "temperature": metrics.temperature
+        }
+    })
+
+    # ✅ 5. Classify workload
     workload = classify_workload(
         cpu=metrics.cpu,
         memory=metrics.memory,

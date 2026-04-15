@@ -18,3 +18,8 @@ backend/energy.db
 # OS
 .DS_Store
 Thumbs.db
+
+# Node registration files
+node_config.json
+node1.json
+node2.json
