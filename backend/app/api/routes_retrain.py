@@ -2,9 +2,8 @@ from fastapi import APIRouter
 import pandas as pd
 import os
 
-from ml.training.train import train_model
 from ml.realtime.dataset_builder import build_realtime_dataset
-from ml.models.model_loader import ModelLoader
+import app.api.routes_execution as execution_routes
 
 router = APIRouter()
 
@@ -56,13 +55,15 @@ def retrain_model():
     # -----------------------------
     # 5. Train model
     # -----------------------------
+    from ml.training.train import train_model
+    from ml.models.model_loader import ModelLoader
+
     train_model(df)
 
     # -----------------------------
     # 6. Reload model (🔥 IMPORTANT)
     # -----------------------------
-    global model
-    model = ModelLoader()
+    execution_routes._model = ModelLoader()
 
     print("🔄 Model reloaded")
 

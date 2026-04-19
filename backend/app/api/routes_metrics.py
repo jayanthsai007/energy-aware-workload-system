@@ -39,6 +39,9 @@ def get_metrics(db: Session = Depends(get_db)):
 @router.post("/metrics")
 def receive_metrics(metrics: DeviceMetrics, db: Session = Depends(get_db)):
 
+    print(
+        f"[METRICS] Received from {metrics.node_id}: CPU={metrics.cpu}%, MEM={metrics.memory}%, TEMP={metrics.temperature}°C")
+
     # ✅ 1. Check if node exists
     node = db.query(Node).filter(Node.node_id == metrics.node_id).first()
 

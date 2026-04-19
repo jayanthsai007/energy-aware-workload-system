@@ -11,14 +11,21 @@ from app.schemas.execution_schema import (
 )
 
 # 🔥 ML imports
-from ml.models.model_loader import ModelLoader
 from app.services.feature_builder import build_features
 
 
 router = APIRouter()
 
-# 🔥 Load model once
-model = ModelLoader()
+# 🔥 Lazy-loaded model
+_model = None
+
+
+def get_model():
+    global _model
+    if _model is None:
+        from ml.models.model_loader import ModelLoader
+        _model = ModelLoader()
+    return _model
 
 
 # ---------------------------
@@ -57,6 +64,7 @@ def select_best_node(db: Session, script: dict):
         ts, static, script_f = features
 
         try:
+            model = get_model()
             score = model.predict(ts, static, script_f)
         except Exception as e:
             print(f"[ERROR] Prediction failed for {node.node_id}: {e}")

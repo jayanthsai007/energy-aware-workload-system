@@ -10,6 +10,7 @@ from app.api.routes_execution import router as execution_router
 from app.api.routes_upload import router as upload_router
 from app.api.routes_node_execution import router as node_execution_router
 from app.api.routes_execute import router as execute_router
+from app.api.routes_health import router as health_router
 from app.api.routes_retrain import router as retrain_router
 from app.api.routes_execution_metrics import router as execution_metrics_router
 from app.api.routes_ws import router as ws_router
@@ -134,6 +135,7 @@ app.include_router(execution_router)
 app.include_router(upload_router)
 app.include_router(node_execution_router)
 app.include_router(execute_router)
+app.include_router(health_router)
 app.include_router(retrain_router)
 app.include_router(execution_metrics_router)
 app.include_router(ws_router)

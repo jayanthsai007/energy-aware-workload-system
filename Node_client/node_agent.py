@@ -19,8 +19,27 @@ from pydantic import BaseModel
 from uvicorn import run as uvicorn_run
 
 # =========================
-# BASE PATH
+# SINGLE INSTANCE ENFORCEMENT
 # =========================
+
+
+def is_agent_already_running():
+    """Check if another agent instance is running"""
+    try:
+        # Try to connect to our local API port
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+        result = s.connect_ex(('127.0.0.1', 9000))
+        s.close()
+        return result == 0  # 0 means connection successful
+    except:
+        return False
+
+
+if is_agent_already_running():
+    print("[AGENT] Another instance is already running. Exiting.")
+    sys.exit(1)
 BASE_DIR = os.path.dirname(
     sys.executable if getattr(sys, 'frozen', False) else __file__
 )
@@ -45,6 +64,12 @@ class RunScriptRequest(BaseModel):
 task_results = {}
 
 
+@local_app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "node_id": NODE_ID}
+
+
 @local_app.post("/run")
 async def run_script(data: RunScriptRequest, background_tasks: BackgroundTasks = None):
     """Receive script from local UI and submit to backend queue"""
@@ -52,10 +77,14 @@ async def run_script(data: RunScriptRequest, background_tasks: BackgroundTasks =
         script = data.script
         language = data.language
 
+        log(f"📝 Received script: {len(script)} chars, language: {language}")
+
         # Generate task_id
         task_id = str(uuid.uuid4())
+        log(f"🆔 Generated task_id: {task_id}")
 
         # Send to backend
+        log(f"📡 Sending to backend: {BACKEND_URL}/execute")
         res = requests.post(
             f"{BACKEND_URL}/execute",
             json={
@@ -66,24 +95,34 @@ async def run_script(data: RunScriptRequest, background_tasks: BackgroundTasks =
             timeout=10
         )
 
+        log(f"📡 Backend response: {res.status_code}")
+
         if res.status_code == 200:
             log(f"✅ Task submitted: {task_id}")
             # Initialize task result
             task_results[task_id] = {"status": "submitted", "task_id": task_id}
             return {"task_id": task_id, "status": "submitted"}
         else:
-            log(f"❌ Backend error: {res.status_code}")
-            return {"error": "Backend submission failed"}
+            error_msg = f"Backend error: {res.status_code} - {res.text}"
+            log(f"❌ {error_msg}")
+            return {"error": error_msg}
 
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Network error: {e}"
+        log(f"❌ {error_msg}")
+        return {"error": error_msg}
     except Exception as e:
-        log(f"❌ Local run error: {e}")
+        error_msg = f"Local run error: {e}"
+        log(f"❌ {error_msg}")
         return {"error": str(e)}
 
 
 @local_app.get("/task/{task_id}")
 async def get_task_result(task_id: str):
-    """Get task result for UI polling"""
-    return task_results.get(task_id, {"status": "not_found"})
+    """Get task result (for UI polling)"""
+    if task_id in task_results:
+        return task_results[task_id]
+    return {"error": "Task not found"}
 
 
 @local_app.get("/status")
@@ -104,13 +143,14 @@ def poll_task_results():
     while is_running():
         try:
             for task_id in list(task_results.keys()):
-                if task_results[task_id]["status"] in ["submitted", "running"]:
+                if task_results[task_id].get("status") not in ["completed", "failed"]:
                     # Poll backend for task status
                     res = requests.get(
                         f"{BACKEND_URL}/task/{task_id}", timeout=5)
                     if res.status_code == 200:
                         data = res.json()
                         task_results[task_id].update(data)
+                        log(f"📊 Task {task_id}: {data.get('status')}")
         except Exception as e:
             log(f"❌ Poll error: {e}")
         time.sleep(2)
@@ -169,16 +209,30 @@ def load_or_create_agent():
         except Exception as e:
             log(f"⚠️ Config corrupted → recreating ({e})")
 
+    # First-run setup
+    log("🎉 First run detected! Setting up node...")
+
+    # Default permissions (in production, prompt user)
+    permissions = {
+        "metrics_access": True,
+        "network_access": True
+    }
+
+    # Default node name (in production, prompt user)
+    node_name = f"Node-{platform.node()}"
+
     config = {
         "agent_id": generate_agent_id(),
         "created_at": time.time(),
-        "node_id": None
+        "node_id": None,
+        "node_name": node_name,
+        "permissions": permissions
     }
 
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=4)
 
-    log("🆕 New config created")
+    log(f"🆕 New config created for node: {node_name}")
     return config
 
 
@@ -475,12 +529,15 @@ if __name__ == "__main__":
 
         # Start local API server in background thread
         def run_local_server():
-            uvicorn_run(local_app, host="127.0.0.1",
-                        port=8081, log_level="error")
+            try:
+                uvicorn_run(local_app, host="127.0.0.1",
+                            port=9000, log_level="error")
+            except Exception as e:
+                log(f"❌ Local server error: {e}")
 
         server_thread = threading.Thread(target=run_local_server, daemon=True)
         server_thread.start()
-        log("🔧 Local API server started on http://127.0.0.1:8081")
+        log("🔧 Local API server started on http://127.0.0.1:9000")
 
         # Start metrics, heartbeat, and polling threads
         threading.Thread(target=send_metrics, daemon=True).start()

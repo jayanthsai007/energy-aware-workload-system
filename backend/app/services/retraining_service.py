@@ -2,8 +2,6 @@ import time
 from datetime import datetime
 from app.database import SessionLocal
 from app.models.execution_metrics_model import ExecutionMetrics
-
-from ml.training.train import train_model
 from ml.realtime.dataset_builder import build_realtime_dataset
 import pandas as pd
 import os
@@ -61,6 +59,7 @@ def retraining_worker():
 
                     print(f"📊 Training on {len(df)} samples")
 
+                    from ml.training.train import train_model
                     train_model(df)
 
                     print("✅ Auto retraining complete")

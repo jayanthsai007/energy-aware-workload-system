@@ -10,9 +10,16 @@ from app.models.metrics_model import Metrics
 from app.models.task_model import Task
 
 from app.services.script_analyzer import extract_script_features
-from ml.models.model_loader import ModelLoader
 
-model = ModelLoader()
+_scheduler_model = None
+
+
+def get_scheduler_model():
+    global _scheduler_model
+    if _scheduler_model is None:
+        from ml.models.model_loader import ModelLoader
+        _scheduler_model = ModelLoader()
+    return _scheduler_model
 
 
 async def scheduler_loop():
@@ -62,14 +69,13 @@ async def scheduler_loop():
             # 🔥 ACTIVE NODES
             # =========================
             nodes = db.query(Node).filter(Node.status == "ACTIVE").all()
+            print(f"[SCHEDULER] Found {len(nodes)} active nodes")
 
             if not nodes:
                 print("[SCHEDULER] No active nodes")
-
                 task.retry_count += 1
                 task.status = "pending"
                 db.commit()
-
                 add_task(task)
                 continue
 
@@ -101,8 +107,9 @@ async def scheduler_loop():
                     .all()
                 )
 
-                if len(metrics) < 5:
-                    print(f"[SKIP] Node {node.node_id} insufficient metrics")
+                if len(metrics) < 1:  # 🔥 TEMP: lowered for testing
+                    print(
+                        f"[SKIP] Node {node.node_id} insufficient metrics ({len(metrics)})")
                     continue
 
                 metrics = list(reversed(metrics))
@@ -133,6 +140,7 @@ async def scheduler_loop():
                         script_features["language"]
                     ])
 
+                    model = get_scheduler_model()
                     score = model.predict(ts, static, script)
 
                     cpu_avg = np.mean([m.cpu_usage for m in metrics]) / 100
