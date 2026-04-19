@@ -13,6 +13,7 @@ import os
 import json
 import uuid
 import requests
+import re
 from datetime import datetime, UTC
 from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
@@ -319,11 +320,33 @@ def send_metrics():
     while is_running():
         if NODE_ID:
             try:
+                cpu = psutil.cpu_percent()
+                memory = psutil.virtual_memory().percent
+
+                # Get temperature - use real sensors if available, else simulate
+                temperature = None
+                sensor_fn = getattr(psutil, "sensors_temperatures", None)
+                if callable(sensor_fn):
+                    try:
+                        sensors = sensor_fn()
+                        if sensors:
+                            for name, entries in sensors.items():
+                                if entries:
+                                    temperature = entries[0].current
+                                    break
+                    except Exception:
+                        temperature = None
+
+                if temperature is None:
+                    temperature = 40 + cpu * 0.4
+
+                log(f"📊 CPU: {cpu}%, MEM: {memory}%, TEMP: {round(temperature, 2)}°C")
+
                 requests.post(f"{BACKEND_URL}/metrics", json={
                     "node_id": NODE_ID,
-                    "cpu": psutil.cpu_percent(),
-                    "memory": psutil.virtual_memory().percent,
-                    "temperature": round(40 + psutil.cpu_percent() * 0.4, 2),
+                    "cpu": cpu,
+                    "memory": memory,
+                    "temperature": round(temperature, 2),
                     "node_timestamp": datetime.now(UTC).isoformat()
                 }, timeout=5)
 
@@ -423,7 +446,27 @@ def run_python(script, task_id):
 
 
 def run_java(script, task_id):
-    return [], "Java requires Docker"
+    if shutil.which("docker"):
+        # Standardize class name to Main
+        match = re.search(r'public class (\w+)', script)
+        if match:
+            class_name = match.group(1)
+            script = script.replace(
+                f'public class {class_name}', 'public class Main')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            java_file = os.path.join(tmpdir, "Main.java")
+            with open(java_file, "w") as f:
+                f.write(script)
+            return subprocess_run([
+                "docker", "run", "--rm",
+                "--cpus=1", "--memory=512m", "--network=none",
+                "-v", f"{tmpdir}:/app",
+                "eclipse-temurin:11",
+                "bash", "-c", "cd /app && javac Main.java && java Main"
+            ], task_id)
+    else:
+        return [], "Java requires Docker"
 
 
 def execute_script(data):
