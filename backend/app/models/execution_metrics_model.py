@@ -14,8 +14,10 @@ class ExecutionMetrics(Base):
     node_id = Column(String, ForeignKey("nodes.node_id"), nullable=False)
 
     # 🧠 Script identity
+    task_id = Column(String, nullable=True)
     script_id = Column(String, nullable=True)
     language = Column(String, nullable=False)
+    script_content = Column(String, nullable=True)
 
     # 📜 Script features
     file_size = Column(Float)

@@ -9,6 +9,10 @@ class NodeRegistrationRequest(BaseModel):
         ..., min_length=10, max_length=128,
         description="Unique agent identifier"
     )
+    node_name: str = Field(
+        ..., min_length=2, max_length=64,
+        description="Human-readable device name shown in the admin dashboard"
+    )
 
     # 🌐 Network
     ip_address: str = Field(
@@ -27,11 +31,14 @@ class NodeRegistrationRequest(BaseModel):
     architecture: Optional[str] = None
     total_storage: Optional[float] = None
     free_storage: Optional[float] = None
+    metrics_access: bool = False
+    network_access: bool = True
 
 
 class NodeRegistrationResponse(BaseModel):
     node_id: str
     agent_id: str
+    node_name: str
     ip_address: str
     status: str
     created_at: datetime

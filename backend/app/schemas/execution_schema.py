@@ -46,6 +46,7 @@ class ExecutionRequest(BaseModel):
 
     # 🔹 Optional tracking (keep if needed)
     script_id: Optional[str] = None
+    task_id: Optional[str] = None
     request_id: Optional[str] = None
     request_timestamp: Optional[datetime] = None
 

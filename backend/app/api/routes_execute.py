@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.node_model import Node
 from app.models.metrics_model import Metrics
 from app.schemas.execution_schema import ExecutionRequest
+from app.api.routes_ws import dispatch_task_to_node
 from ml.models.model_loader import ModelLoader
 
 router = APIRouter()
@@ -130,9 +131,28 @@ def execute(payload: ExecutionRequest, db: Session = Depends(get_db)):
         try:
             print(f"[EXEC] Trying node: {node.node_id}")
 
+            if payload.task_id:
+                import asyncio
+
+                asyncio.run(dispatch_task_to_node(
+                    node.node_id,
+                    payload.task_id,
+                    payload.script_content,
+                    payload.language,
+                ))
+                return {
+                    "task_id": payload.task_id,
+                    "selected_node_id": node.node_id,
+                    "prediction_score": score,
+                    "status": "submitted",
+                }
+
             response = requests.post(
                 f"http://{node.ip_address}/node-execute",
-                json={"script": payload.script_content},
+                json={
+                    "script": payload.script_content,
+                    "language": payload.language,
+                },
                 timeout=5
             )
 
@@ -162,7 +182,9 @@ def execute(payload: ExecutionRequest, db: Session = Depends(get_db)):
 
             feedback = ExecutionMetrics(
                 node_id=node.node_id,
+                task_id=payload.task_id,
                 script_id=payload.script_id,
+                script_content=payload.script_content,
                 language=payload.language,
 
                 file_size=script_features["file_size"],

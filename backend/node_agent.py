@@ -13,6 +13,15 @@ import subprocess
 import socket
 import platform
 import re
+import sys
+
+try:
+    import tkinter as tk
+    from tkinter import messagebox, simpledialog
+except Exception:
+    tk = None
+    messagebox = None
+    simpledialog = None
 
 app = FastAPI()
 
@@ -35,13 +44,21 @@ def generate_agent_id():
 def load_or_create_agent():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
+            config = json.load(f)
+    else:
+        config = {
+            "agent_id": generate_agent_id(),
+            "created_at": time.time(),
+            "node_id": None
+        }
 
-    config = {
-        "agent_id": generate_agent_id(),
-        "created_at": time.time(),
-        "node_id": None
-    }
+    config.setdefault("agent_id", generate_agent_id())
+    config.setdefault("created_at", time.time())
+    config.setdefault("node_id", None)
+    config.setdefault("node_name", "")
+    config.setdefault("permissions", {})
+    config["permissions"].setdefault("metrics_access", False)
+    config["permissions"].setdefault("network_access", True)
 
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f)
@@ -52,6 +69,77 @@ def load_or_create_agent():
 def save_config():
     with open(CONFIG_FILE, "w") as f:
         json.dump(agent_config, f)
+
+
+def get_default_device_name():
+    computer_name = os.getenv(
+        "COMPUTERNAME") or socket.gethostname() or "Device"
+    return f"Node-{computer_name}"
+
+
+def prompt_text(prompt_title, prompt_message, default_value):
+    if tk and simpledialog:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        value = simpledialog.askstring(
+            prompt_title, prompt_message, initialvalue=default_value, parent=root)
+        root.destroy()
+        if value and value.strip():
+            return value.strip()
+
+    if sys.stdin and sys.stdin.isatty():
+        typed_value = input(f"{prompt_message} [{default_value}]: ").strip()
+        return typed_value or default_value
+
+    return default_value
+
+
+def prompt_yes_no(prompt_title, prompt_message, default_value=False):
+    if tk and messagebox:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        answer = messagebox.askyesno(prompt_title, prompt_message, parent=root)
+        root.destroy()
+        return answer
+
+    if sys.stdin and sys.stdin.isatty():
+        default_choice = "y" if default_value else "n"
+        typed_value = input(
+            f"{prompt_message} [y/n, default={default_choice}]: ").strip().lower()
+        if not typed_value:
+            return default_value
+        return typed_value.startswith("y")
+
+    return default_value
+
+
+def ensure_security_setup():
+    updated = False
+
+    if not agent_config.get("node_name"):
+        agent_config["node_name"] = prompt_text(
+            "Device Name",
+            "Enter a name for this device to show in the admin dashboard.",
+            get_default_device_name(),
+        )
+        updated = True
+
+    permissions = agent_config.setdefault("permissions", {})
+
+    if "metrics_access" not in permissions or permissions.get("metrics_access") is None:
+        permissions["metrics_access"] = prompt_yes_no(
+            "Metrics Permission",
+            "Allow this device to share CPU, memory, and temperature metrics with the admin dashboard?",
+            default_value=False,
+        )
+        updated = True
+
+    permissions.setdefault("network_access", True)
+
+    if updated:
+        save_config()
 
 
 # =========================
@@ -70,8 +158,11 @@ PORT = int(os.getenv("PORT", 8001))
 IP_ADDRESS = f"{get_local_ip()}:{PORT}"
 
 agent_config = load_or_create_agent()
+ensure_security_setup()
 AGENT_ID = agent_config["agent_id"]
 NODE_ID = agent_config.get("node_id")
+NODE_NAME = agent_config.get("node_name") or get_default_device_name()
+PERMISSIONS = agent_config.get("permissions", {})
 
 
 # =========================
@@ -88,6 +179,7 @@ def register_node():
 
     payload = {
         "agent_id": AGENT_ID,
+        "node_name": NODE_NAME,
         "ip_address": IP_ADDRESS,
 
         "cpu_cores": psutil.cpu_count(),
@@ -99,7 +191,9 @@ def register_node():
         "free_storage": round(psutil.disk_usage('/').free / (1024 ** 3), 2),
 
         "os": platform.system(),
-        "architecture": platform.machine()
+        "architecture": platform.machine(),
+        "metrics_access": bool(PERMISSIONS.get("metrics_access", False)),
+        "network_access": bool(PERMISSIONS.get("network_access", True))
     }
 
     try:
@@ -107,6 +201,7 @@ def register_node():
         data = res.json()
 
         NODE_ID = data.get("node_id")
+        agent_config["node_name"] = data.get("node_name", NODE_NAME)
 
         # ✅ save node_id
         agent_config["node_id"] = NODE_ID
@@ -144,6 +239,10 @@ def get_temperature():
 # =========================
 def send_metrics():
     while True:
+        if not PERMISSIONS.get("metrics_access", False):
+            time.sleep(5)
+            continue
+
         if not NODE_ID:
             time.sleep(5)
             continue
@@ -320,9 +419,17 @@ def execute_script(payload: dict):
 def startup():
     print("Starting Node Agent...")
     print(f"Agent ID: {AGENT_ID}")
+    print(f"Device Name: {NODE_NAME}")
     print(f"IP: {IP_ADDRESS}")
+    print(f"Metrics Access: {PERMISSIONS.get('metrics_access', False)}")
 
     register_node()
 
     threading.Thread(target=send_metrics, daemon=True).start()
     threading.Thread(target=heartbeat, daemon=True).start()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=PORT)

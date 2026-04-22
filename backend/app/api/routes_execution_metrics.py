@@ -16,11 +16,17 @@ def get_execution_metrics(db: Session = Depends(get_db)):
 
     return [
         {
+            "node_id": r.node_id,
+            "task_id": r.task_id,
+            "script_id": r.script_id,
+            "script": r.script_content,
+            "language": r.language,
             "execution_time": r.execution_time,
             "cpu_avg": r.cpu_avg,
             "memory_avg": r.memory_avg,
             "cpu_peak": r.cpu_peak,
             "memory_peak": r.memory_peak,
+            "composite_score": r.composite_score,
             "timestamp": r.timestamp
         }
         for r in rows

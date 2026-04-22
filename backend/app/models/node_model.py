@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Integer, Float
+from sqlalchemy import Boolean, Column, String, DateTime, Integer, Float
 from datetime import datetime
 from app.database import Base
 from sqlalchemy.orm import relationship
@@ -22,6 +22,7 @@ class Node(Base):
     # UNIQUE MACHINE ID
     # =========================
     agent_id = Column(String, unique=True, index=True, nullable=False)
+    node_name = Column(String, nullable=True)
 
     # =========================
     # NETWORK INFO
@@ -52,6 +53,8 @@ class Node(Base):
     # METADATA
     # =========================
     created_at = Column(DateTime, default=datetime.utcnow)
+    metrics_access = Column(Boolean, default=False)
+    network_access = Column(Boolean, default=True)
 
     # =========================
     # RELATIONSHIPS

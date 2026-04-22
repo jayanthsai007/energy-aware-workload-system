@@ -26,6 +26,7 @@ def get_metrics(db: Session = Depends(get_db)):
 
     return [
         {
+            "node_id": m.node_id,
             "cpu": m.cpu_usage,
             "memory": m.memory_usage,
             "temperature": m.temperature,
@@ -48,7 +49,9 @@ def receive_metrics(metrics: DeviceMetrics, db: Session = Depends(get_db)):
     db_metrics = Metrics(
         node_id=metrics.node_id,
         cpu_usage=metrics.cpu,
-        memory_usage=metrics.memory
+        memory_usage=metrics.memory,
+        temperature=metrics.temperature,
+        timestamp=metrics.node_timestamp or datetime.utcnow(),
     )
 
     db.add(db_metrics)

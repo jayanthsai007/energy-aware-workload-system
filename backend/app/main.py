@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from sqlalchemy import inspect, text
 from app.api.routes_metrics import router as metrics_router
 from app.api.routes_nodes import router as nodes_router
 from app.api.routes_heartbeat import router as heartbeat_router
@@ -6,6 +7,8 @@ from app.api.routes_execution import router as execution_router
 from app.api.routes_upload import router as upload_router
 from app.api.routes_node_execution import router as node_execution_router
 from app.api.routes_execute import router as execute_router
+from app.api.routes_ws import router as ws_router
+from app.api.routes_dashboard import router as dashboard_router
 from app.models.execution_metrics_model import ExecutionMetrics
 from app.api.routes_retrain import router as retrain_router
 from app.database import engine, Base, SessionLocal
@@ -23,12 +26,52 @@ app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
 
+def ensure_node_metadata_columns():
+    inspector = inspect(engine)
+    existing_columns = {column["name"] for column in inspector.get_columns("nodes")}
+    required_columns = {
+        "node_name": "ALTER TABLE nodes ADD COLUMN node_name VARCHAR",
+        "metrics_access": "ALTER TABLE nodes ADD COLUMN metrics_access BOOLEAN DEFAULT 0",
+        "network_access": "ALTER TABLE nodes ADD COLUMN network_access BOOLEAN DEFAULT 1",
+    }
+
+    with engine.begin() as connection:
+        for column_name, ddl in required_columns.items():
+            if column_name not in existing_columns:
+                connection.execute(text(ddl))
+
+
+ensure_node_metadata_columns()
+
+
+def ensure_execution_metadata_columns():
+    inspector = inspect(engine)
+    existing_columns = {column["name"] for column in inspector.get_columns("execution_metrics")}
+    required_columns = {
+        "task_id": "ALTER TABLE execution_metrics ADD COLUMN task_id VARCHAR",
+        "script_content": "ALTER TABLE execution_metrics ADD COLUMN script_content VARCHAR",
+    }
+
+    with engine.begin() as connection:
+        for column_name, ddl in required_columns.items():
+            if column_name not in existing_columns:
+                connection.execute(text(ddl))
+
+
+ensure_execution_metadata_columns()
+
+
 # =========================
 # ROOT
 # =========================
 @app.get("/")
 def root():
     return {"message": "Energy Aware Workload System Backend Running"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
 
 
 # =========================
@@ -78,5 +121,7 @@ app.include_router(execution_router)
 app.include_router(upload_router)
 app.include_router(node_execution_router)
 app.include_router(execute_router)
+app.include_router(ws_router)
+app.include_router(dashboard_router)
 app.include_router(retrain_router)
 app.include_router(execution_metrics_router)

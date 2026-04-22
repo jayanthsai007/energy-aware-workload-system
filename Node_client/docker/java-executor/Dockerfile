@@ -1,0 +1,5 @@
+FROM eclipse-temurin:11
+
+WORKDIR /app
+
+CMD ["java", "-version"]
