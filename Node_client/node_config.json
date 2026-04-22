@@ -1,10 +1,10 @@
 {
-    "agent_id": "5aad1e84-28d6-4292-8741-03f1ee29ce74",
-    "created_at": 1776275638.079961,
-    "node_id": "693e639c-7d64-4712-9594-b95db238a6de",
-    "node_name": "Node-LAPTOP-UOIB6AT2",
+    "node_name": "Jayanth",
     "permissions": {
         "metrics_access": true,
         "network_access": true
-    }
+    },
+    "agent_id": "d9cda29b-9030-4fc2-ad8c-b603d78f16e9",
+    "created_at": 1776882812.9416797,
+    "node_id": "ac6de4e2-268b-4712-a87e-0e73c4e8af32"
 }

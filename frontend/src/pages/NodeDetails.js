@@ -342,6 +342,8 @@ export default function NodeDetails() {
   const taskNodeName = getNodeDisplayName(nodeCards, taskNodeId);
   const taskExecutionTime = taskDetails?.execution_time != null ? `${taskDetails.execution_time} sec` : "Not available";
   const totalMemoryGb = Number(selectedNode?.totalMemory) || 0;
+  const selectedNodeName = selectedNode?.label || "Not available";
+  const selectedNodeId = selectedNode?.node_id || "Not available";
   const memoryPercent = Math.max(0, Math.min(100, Number(latest.memory) || 0));
   const usedMemoryGb = totalMemoryGb ? (totalMemoryGb * memoryPercent) / 100 : 0;
   const availableMemoryGb = Math.max(0, totalMemoryGb - usedMemoryGb);
@@ -453,7 +455,7 @@ export default function NodeDetails() {
               <span />
             </Link>
             <div className="page-title">
-              Node-01 <span className="page-subtitle">(node-id-name)</span>
+              {selectedNodeName} <span className="page-subtitle">({selectedNodeId})</span>
             </div>
           </div>
 
@@ -472,7 +474,7 @@ export default function NodeDetails() {
         <div className="detail-main">
           <aside className="side-panel">
             <ul className="side-list">
-              <li>Node-01 (node-id-name)</li>
+              <li>{selectedNodeName} ({selectedNodeId})</li>
               <li>CPU Peak: {Math.round(latest.cpu)}%</li>
               <li>CPU Min: {Math.round(latest.cpu * 0.8)}%</li>
               <li>Status: {taskStatus}</li>

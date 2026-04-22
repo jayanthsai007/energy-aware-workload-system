@@ -50,7 +50,7 @@ CONFIG_FILE = os.path.join(BASE_DIR, "node_config.json")
 LOG_FILE = os.path.join(BASE_DIR, "agent.log")
 
 BACKEND_URL = "http://127.0.0.1:8000"
-PYTHON_EXECUTOR_IMAGE = "energy-node-python:latest"
+PYTHON_EXECUTOR_IMAGE = "energy-node-python:v2"
 JAVA_EXECUTOR_IMAGE = "energy-node-java:latest"
 
 
@@ -242,17 +242,32 @@ def generate_agent_id():
     return str(uuid.uuid4())
 
 
+def get_default_node_name():
+    return f"Node-{platform.node()}"
+
+
 def load_or_create_agent():
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r") as f:
                 config = json.load(f)
 
-            if "agent_id" not in config:
-                raise ValueError("Invalid config")
+            config.setdefault("agent_id", generate_agent_id())
+            config.setdefault("created_at", time.time())
+            config["node_id"] = config.get("node_id") or None
+            config["node_name"] = str(
+                config.get("node_name") or get_default_node_name()
+            ).strip()
 
-            if not config.get("node_id"):
-                config["node_id"] = None
+            permissions = config.get("permissions")
+            if not isinstance(permissions, dict):
+                permissions = {}
+            permissions.setdefault("metrics_access", True)
+            permissions.setdefault("network_access", True)
+            config["permissions"] = permissions
+
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(config, f, indent=4)
 
             log("📂 Loaded config")
             return config
@@ -270,7 +285,7 @@ def load_or_create_agent():
     }
 
     # Default node name (in production, prompt user)
-    node_name = f"Node-{platform.node()}"
+    node_name = get_default_node_name()
 
     config = {
         "agent_id": generate_agent_id(),
@@ -325,13 +340,12 @@ def register_node():
 
     if NODE_ID:
         log(f"🔁 Using node_id: {NODE_ID}")
-        return
 
     try:
         log("📡 Registering node...")
 
         payload = {
-            "node_name": f"Node-{AGENT_ID[:6]}",
+            "node_name": agent_config.get("node_name") or get_default_node_name(),
             "agent_id": AGENT_ID,
             "ip_address": f"{IP_ADDRESS}:8000",
             "cpu_cores": psutil.cpu_count(),
@@ -340,7 +354,9 @@ def register_node():
             "total_storage": round(psutil.disk_usage('/').total / (1024 ** 3), 2),
             "free_storage": round(psutil.disk_usage('/').free / (1024 ** 3), 2),
             "os": platform.system(),
-            "architecture": platform.machine()
+            "architecture": platform.machine(),
+            "metrics_access": bool(agent_config.get("permissions", {}).get("metrics_access", True)),
+            "network_access": bool(agent_config.get("permissions", {}).get("network_access", True)),
         }
 
         res = requests.post(f"{BACKEND_URL}/register-node",
@@ -355,6 +371,7 @@ def register_node():
 
         if NODE_ID:
             agent_config["node_id"] = NODE_ID
+            agent_config["node_name"] = payload["node_name"]
             save_config()
             log(f"✅ Registered: {NODE_ID}")
 

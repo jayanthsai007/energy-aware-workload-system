@@ -36,6 +36,7 @@ BASE_DIR = os.path.dirname(
 )
 
 LOG_FILE = os.path.join(BASE_DIR, "ui.log")
+CONFIG_FILE = os.path.join(BASE_DIR, "node_config.json")
 
 
 def log(msg):
@@ -54,6 +55,56 @@ def log(msg):
 # =========================
 LOCAL_AGENT_URL = "http://127.0.0.1:9000"
 BACKEND_URL = "http://127.0.0.1:8000"
+
+
+def load_node_config():
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_node_config(config):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=4)
+
+
+def prompt_for_node_name():
+    default_name = f"Node-{socket.gethostname()}"
+
+    if not sys.stdin or not sys.stdin.isatty():
+        return default_name
+
+    while True:
+        typed_value = input(f"Enter node name [{default_name}]: ").strip()
+        node_name = typed_value or default_name
+
+        if node_name:
+            return node_name
+
+
+def ensure_node_name_config():
+    config = load_node_config()
+
+    if str(config.get("node_name") or "").strip():
+        return config
+
+    node_name = prompt_for_node_name()
+    config["node_name"] = node_name
+
+    if "permissions" not in config or not isinstance(config.get("permissions"), dict):
+        config["permissions"] = {
+            "metrics_access": True,
+            "network_access": True,
+        }
+
+    save_node_config(config)
+    log(f"Using node name: {node_name}")
+    return config
 
 # =========================
 # GLOBALS
@@ -487,6 +538,8 @@ def stop_agent():
 # =========================
 # UI
 # =========================
+ensure_node_name_config()
+
 root = tk.Tk()
 root.title("⚡ Node IDE")
 root.geometry("1200x750")
