@@ -116,11 +116,37 @@ The node client is the worker-side application that:
 - sends heartbeat and live metrics
 - runs Python and Java tasks
 
-No separate package manifest exists for `Node_client`, so it uses your Python environment. Install the packages it imports:
+`Node_client/` now includes its own dependency manifest and setup scripts so worker machines can create a local virtual environment inside the folder.
+
+Windows PowerShell:
 
 ```powershell
-pip install fastapi uvicorn requests psutil websockets pydantic
+cd Node_client
+.\setup_venv.ps1
+.\.venv\Scripts\Activate.ps1
+python node_ui.py
 ```
+
+Windows Command Prompt:
+
+```bat
+cd Node_client
+setup_venv.bat
+.venv\Scripts\activate.bat
+python node_ui.py
+```
+
+Manual setup is also supported:
+
+```powershell
+cd Node_client
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python node_ui.py
+```
+
+The `node_ui.py` launcher uses the active Python interpreter, so once the `Node_client` virtual environment is activated it will start `node_agent.py` in that same environment automatically.
 
 ## Docker Executors
 
@@ -177,6 +203,7 @@ Open a new terminal and run:
 
 ```powershell
 cd Node_client
+.\.venv\Scripts\Activate.ps1
 python node_ui.py
 ```
 
