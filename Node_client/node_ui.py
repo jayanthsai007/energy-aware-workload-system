@@ -54,7 +54,7 @@ def log(msg):
 # CONFIG
 # =========================
 LOCAL_AGENT_URL = "http://127.0.0.1:9000"
-BACKEND_URL = "http://127.0.0.1:8000"
+DEFAULT_BACKEND_URL = "http://127.0.0.1:8000"
 
 
 def load_node_config():
@@ -71,6 +71,23 @@ def load_node_config():
 def save_node_config(config):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
+
+
+def resolve_backend_url(config=None):
+    env_backend = (
+        os.getenv("OPTINODE_BACKEND_URL")
+        or os.getenv("BACKEND_URL")
+        or ""
+    ).strip()
+    if env_backend:
+        return env_backend.rstrip("/")
+
+    config = config if isinstance(config, dict) else load_node_config()
+    config_backend = str(config.get("backend_url") or "").strip()
+    if config_backend:
+        return config_backend.rstrip("/")
+
+    return DEFAULT_BACKEND_URL
 
 
 def prompt_for_node_name():
@@ -105,6 +122,9 @@ def ensure_node_name_config():
     save_node_config(config)
     log(f"Using node name: {node_name}")
     return config
+
+
+BACKEND_URL = resolve_backend_url()
 
 # =========================
 # GLOBALS

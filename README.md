@@ -148,6 +148,27 @@ python node_ui.py
 
 The `node_ui.py` launcher uses the active Python interpreter, so once the `Node_client` virtual environment is activated it will start `node_agent.py` in that same environment automatically.
 
+For a worker machine that connects to a backend running on another computer, set the backend URL before starting the UI. You can do that either in `Node_client/node_config.json`:
+
+```json
+{
+  "backend_url": "http://192.168.1.20:8000"
+}
+```
+
+or by setting an environment variable for the current terminal:
+
+```powershell
+$env:OPTINODE_BACKEND_URL = "http://192.168.1.20:8000"
+```
+
+Environment variable precedence is:
+
+- `OPTINODE_BACKEND_URL`
+- `BACKEND_URL`
+- `Node_client/node_config.json` `backend_url`
+- fallback default `http://127.0.0.1:8000`
+
 ## Docker Executors
 
 Java execution uses Docker images from:

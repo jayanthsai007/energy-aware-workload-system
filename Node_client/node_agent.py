@@ -49,9 +49,34 @@ CODE_VERSION = str(int(os.path.getmtime(os.path.abspath(__file__))))
 CONFIG_FILE = os.path.join(BASE_DIR, "node_config.json")
 LOG_FILE = os.path.join(BASE_DIR, "agent.log")
 
-BACKEND_URL = "http://127.0.0.1:8000"
+DEFAULT_BACKEND_URL = "http://127.0.0.1:8000"
 PYTHON_EXECUTOR_IMAGE = "energy-node-python:v2"
 JAVA_EXECUTOR_IMAGE = "energy-node-java:latest"
+
+
+def load_backend_url():
+    env_backend = (
+        os.getenv("OPTINODE_BACKEND_URL")
+        or os.getenv("BACKEND_URL")
+        or ""
+    ).strip()
+    if env_backend:
+        return env_backend.rstrip("/")
+
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            config_backend = str(config.get("backend_url") or "").strip()
+            if config_backend:
+                return config_backend.rstrip("/")
+        except Exception:
+            pass
+
+    return DEFAULT_BACKEND_URL
+
+
+BACKEND_URL = load_backend_url()
 
 
 def get_repo_root_candidates():
