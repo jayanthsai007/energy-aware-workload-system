@@ -6,10 +6,23 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $venvPath = Join-Path $root $VenvName
-$pythonExe = "python"
+
+function Get-PythonLauncher {
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        return @("py", "-3", "-m", "venv")
+    }
+
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        return @("python", "-m", "venv")
+    }
+
+    throw "Python 3 was not found. Install Python 3.12+ and make sure either 'py' or 'python' works in PowerShell."
+}
+
+$pythonCmd = Get-PythonLauncher
 
 Write-Host "Creating node client virtual environment at $venvPath"
-& $pythonExe -m venv $venvPath
+& $pythonCmd[0] $pythonCmd[1] $pythonCmd[2] $pythonCmd[3] $venvPath
 
 $venvPython = Join-Path $venvPath "Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
