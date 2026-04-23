@@ -16,6 +16,17 @@ venv/
 # Database
 backend/energy.db
 
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Cache / Build
+.cache/
+*.pack
+dist/
+build/
+
 # OS
 .DS_Store
 Thumbs.db
