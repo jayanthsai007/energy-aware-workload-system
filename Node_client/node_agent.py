@@ -49,9 +49,21 @@ CODE_VERSION = str(int(os.path.getmtime(os.path.abspath(__file__))))
 CONFIG_FILE = os.path.join(BASE_DIR, "node_config.json")
 LOG_FILE = os.path.join(BASE_DIR, "agent.log")
 
-BACKEND_URL = "http://127.0.0.1:8000"
+DEFAULT_PUBLIC_BACKEND_URL = "https://your-app.onrender.com"
 PYTHON_EXECUTOR_IMAGE = "energy-node-python:v2"
 JAVA_EXECUTOR_IMAGE = "energy-node-java:latest"
+
+
+def normalize_backend_url(url):
+    return str(url or "").strip().rstrip("/")
+
+
+def build_ws_url(backend_url):
+    if backend_url.startswith("https://"):
+        return "wss://" + backend_url[len("https://"):] + "/ws"
+    if backend_url.startswith("http://"):
+        return "ws://" + backend_url[len("http://"):] + "/ws"
+    raise ValueError(f"Unsupported backend URL: {backend_url}")
 
 
 def get_repo_root_candidates():
@@ -249,15 +261,17 @@ def get_default_node_name():
 def load_or_create_agent():
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r") as f:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
-            config.setdefault("agent_id", generate_agent_id())
-            config.setdefault("created_at", time.time())
+            config.setdefault("backend_url", "")
+            config["agent_id"] = str(config.get("agent_id") or generate_agent_id()).strip()
+            config["created_at"] = config.get("created_at") or time.time()
             config["node_id"] = config.get("node_id") or None
             config["node_name"] = str(
                 config.get("node_name") or get_default_node_name()
             ).strip()
+            config["backend_url"] = normalize_backend_url(config.get("backend_url"))
 
             permissions = config.get("permissions")
             if not isinstance(permissions, dict):
@@ -266,7 +280,7 @@ def load_or_create_agent():
             permissions.setdefault("network_access", True)
             config["permissions"] = permissions
 
-            with open(CONFIG_FILE, "w") as f:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=4)
 
             log("📂 Loaded config")
@@ -288,6 +302,7 @@ def load_or_create_agent():
     node_name = get_default_node_name()
 
     config = {
+        "backend_url": "",
         "agent_id": generate_agent_id(),
         "created_at": time.time(),
         "node_id": None,
@@ -295,7 +310,7 @@ def load_or_create_agent():
         "permissions": permissions
     }
 
-    with open(CONFIG_FILE, "w") as f:
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
 
     log(f"🆕 New config created for node: {node_name}")
@@ -303,7 +318,7 @@ def load_or_create_agent():
 
 
 def save_config():
-    with open(CONFIG_FILE, "w") as f:
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(agent_config, f, indent=4)
 
 # =========================
@@ -328,6 +343,13 @@ def get_local_ip():
 agent_config = load_or_create_agent()
 AGENT_ID = agent_config["agent_id"]
 NODE_ID = agent_config.get("node_id") or None
+BACKEND_URL = normalize_backend_url(agent_config.get("backend_url"))
+WS_URL = ""
+if BACKEND_URL:
+    try:
+        WS_URL = build_ws_url(BACKEND_URL)
+    except ValueError:
+        WS_URL = ""
 IP_ADDRESS = get_local_ip()
 
 # =========================
@@ -338,45 +360,65 @@ IP_ADDRESS = get_local_ip()
 def register_node():
     global NODE_ID
 
+    if not BACKEND_URL:
+        raise RuntimeError(
+            "Missing backend_url in node_config.json. "
+            f"Set it to a reachable backend URL such as {DEFAULT_PUBLIC_BACKEND_URL}."
+        )
+    if not WS_URL:
+        raise RuntimeError(
+            "Invalid backend_url in node_config.json. "
+            "Use a full http:// or https:// URL."
+        )
+
     if NODE_ID:
         log(f"🔁 Using node_id: {NODE_ID}")
 
-    try:
-        log("📡 Registering node...")
+    log("📡 Registering node...")
 
-        payload = {
-            "node_name": agent_config.get("node_name") or get_default_node_name(),
-            "agent_id": AGENT_ID,
-            "ip_address": f"{IP_ADDRESS}:8000",
-            "cpu_cores": psutil.cpu_count(),
-            "cpu_frequency": psutil.cpu_freq().max if psutil.cpu_freq() else 2.5,
-            "total_memory": round(psutil.virtual_memory().total / (1024 ** 3), 2),
-            "total_storage": round(psutil.disk_usage('/').total / (1024 ** 3), 2),
-            "free_storage": round(psutil.disk_usage('/').free / (1024 ** 3), 2),
-            "os": platform.system(),
-            "architecture": platform.machine(),
-            "metrics_access": bool(agent_config.get("permissions", {}).get("metrics_access", True)),
-            "network_access": bool(agent_config.get("permissions", {}).get("network_access", True)),
-        }
+    payload = {
+        "node_name": agent_config.get("node_name") or get_default_node_name(),
+        "agent_id": AGENT_ID,
+        "ip_address": f"{IP_ADDRESS}:8000",
+        "cpu_cores": psutil.cpu_count(),
+        "cpu_frequency": psutil.cpu_freq().max if psutil.cpu_freq() else 2.5,
+        "total_memory": round(psutil.virtual_memory().total / (1024 ** 3), 2),
+        "total_storage": round(psutil.disk_usage('/').total / (1024 ** 3), 2),
+        "free_storage": round(psutil.disk_usage('/').free / (1024 ** 3), 2),
+        "os": platform.system(),
+        "architecture": platform.machine(),
+        "metrics_access": bool(agent_config.get("permissions", {}).get("metrics_access", True)),
+        "network_access": bool(agent_config.get("permissions", {}).get("network_access", True)),
+    }
 
-        res = requests.post(f"{BACKEND_URL}/register-node",
-                            json=payload, timeout=10)
+    res = requests.post(f"{BACKEND_URL}/register-node", json=payload, timeout=10)
+    res.raise_for_status()
 
-        if res.status_code != 200:
-            log(f"❌ Registration failed -> {res.text}")
-            return
+    data = res.json()
+    NODE_ID = data.get("node_id")
 
-        data = res.json()
-        NODE_ID = data.get("node_id")
+    if NODE_ID:
+        agent_config["node_id"] = NODE_ID
+        agent_config["node_name"] = payload["node_name"]
+        save_config()
+        log(f"✅ Registered: {NODE_ID}")
+        return True
 
-        if NODE_ID:
-            agent_config["node_id"] = NODE_ID
-            agent_config["node_name"] = payload["node_name"]
-            save_config()
-            log(f"✅ Registered: {NODE_ID}")
+    raise RuntimeError("Backend response did not include node_id")
 
-    except Exception as e:
-        log(f"❌ Registration error: {e}")
+
+def registration_retry_loop():
+    while is_running() and not NODE_ID:
+        try:
+            register_node()
+            if NODE_ID:
+                return
+        except Exception as e:
+            log(f"❌ Registration error: {e}")
+
+        if is_running() and not NODE_ID:
+            log("🔁 Retrying registration in 5 seconds...")
+            time.sleep(5)
 
 # =========================
 # METRICS + HEARTBEAT
@@ -653,13 +695,18 @@ async def websocket_client():
 
     event_loop = asyncio.get_running_loop()
 
-    ws_url = BACKEND_URL.replace("http", "ws") + "/ws"
-
     while is_running():
         try:
-            log("🔌 Connecting WS...")
+            if not WS_URL:
+                log("❌ Missing backend_url in node_config.json. WS retrying in 5 seconds...")
+                await asyncio.sleep(5)
+                continue
 
-            async with websockets.connect(ws_url) as ws:
+            log("🔌 Connecting WS...")
+            log(f"[AGENT] Backend URL: {BACKEND_URL}")
+            log(f"[AGENT] WS URL: {WS_URL}")
+
+            async with websockets.connect(WS_URL) as ws:
                 ws_connection = ws
                 log("✅ WS Connected")
 
@@ -693,7 +740,8 @@ async def websocket_client():
         except Exception as e:
             if is_running():
                 log(f"❌ WS error: {e}")
-                await asyncio.sleep(3)
+                log("WS failed, retrying in 5 seconds...")
+                await asyncio.sleep(5)
 
 # =========================
 # SHUTDOWN
@@ -706,7 +754,8 @@ def shutdown():
     shutdown_event.set()
     if ws_connection and event_loop:
         try:
-            asyncio.run_coroutine_threadsafe(ws_connection.close(), event_loop)
+            close_future = asyncio.run_coroutine_threadsafe(ws_connection.close(), event_loop)
+            close_future.result(timeout=5)
         except Exception:
             pass
     if local_server is not None:
@@ -719,8 +768,8 @@ def shutdown():
 if __name__ == "__main__":
     try:
         log("🚀 Node Agent Starting...")
-
-        register_node()
+        log(f"[AGENT] Backend URL: {BACKEND_URL or '(not configured)'}")
+        log(f"[AGENT] WS URL: {WS_URL or '(not configured)'}")
 
         # Start local API server in background thread
         def run_local_server():
@@ -740,6 +789,8 @@ if __name__ == "__main__":
         server_thread = threading.Thread(target=run_local_server, daemon=True)
         server_thread.start()
         log("🔧 Local API server started on http://127.0.0.1:9000")
+
+        threading.Thread(target=registration_retry_loop, daemon=True).start()
 
         # Start metrics, heartbeat, and polling threads
         threading.Thread(target=send_metrics, daemon=True).start()

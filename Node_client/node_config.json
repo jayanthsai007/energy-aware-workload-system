@@ -1,10 +1,11 @@
 {
+    "backend_url": "http://127.0.0.1:8000",
     "node_name": "Jayanth",
+    "agent_id": "00674630-b23e-4b7c-92f9-615344ecb208",
+    "node_id": "43080a97-881e-494e-a769-2faeb0831554",
     "permissions": {
         "metrics_access": true,
         "network_access": true
     },
-    "agent_id": "d9cda29b-9030-4fc2-ad8c-b603d78f16e9",
-    "created_at": 1776882812.9416797,
-    "node_id": "ac6de4e2-268b-4712-a87e-0e73c4e8af32"
+    "created_at": 1776930988.8900874
 }

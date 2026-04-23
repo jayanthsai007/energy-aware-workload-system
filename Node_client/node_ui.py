@@ -54,23 +54,73 @@ def log(msg):
 # CONFIG
 # =========================
 LOCAL_AGENT_URL = "http://127.0.0.1:9000"
-BACKEND_URL = "http://127.0.0.1:8000"
+DEFAULT_PUBLIC_BACKEND_URL = "https://your-app.onrender.com"
 
 
 def load_node_config():
     if not os.path.exists(CONFIG_FILE):
-        return {}
+        return {
+            "backend_url": "",
+            "node_name": "",
+            "agent_id": "",
+            "node_id": None,
+            "permissions": {
+                "metrics_access": True,
+                "network_access": True,
+            },
+        }
 
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            config = json.load(f)
     except Exception:
-        return {}
+        config = {}
+
+    if not isinstance(config, dict):
+        config = {}
+
+    config.setdefault("backend_url", "")
+    config.setdefault("node_name", "")
+    config["agent_id"] = str(config.get("agent_id") or "").strip()
+    config.setdefault("node_id", None)
+
+    permissions = config.get("permissions")
+    if not isinstance(permissions, dict):
+        permissions = {}
+    permissions.setdefault("metrics_access", True)
+    permissions.setdefault("network_access", True)
+    config["permissions"] = permissions
+
+    return config
 
 
 def save_node_config(config):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
+
+
+def normalize_backend_url(url):
+    return str(url or "").strip().rstrip("/")
+
+
+def is_supported_backend_url(url):
+    return url.startswith("http://") or url.startswith("https://")
+
+
+def prompt_for_backend_url():
+    default_url = normalize_backend_url(
+        os.getenv("OPTINODE_BACKEND_URL") or DEFAULT_PUBLIC_BACKEND_URL
+    )
+
+    if not sys.stdin or not sys.stdin.isatty():
+        return default_url
+
+    while True:
+        typed_value = input(f"Enter backend URL [{default_url}]: ").strip()
+        backend_url = normalize_backend_url(typed_value or default_url)
+        if is_supported_backend_url(backend_url):
+            return backend_url
+        print("Backend URL must start with http:// or https://")
 
 
 def prompt_for_node_name():
@@ -90,7 +140,15 @@ def prompt_for_node_name():
 def ensure_node_name_config():
     config = load_node_config()
 
+    backend_url = normalize_backend_url(config.get("backend_url"))
+
+    if not is_supported_backend_url(backend_url):
+        backend_url = prompt_for_backend_url()
+        config["backend_url"] = backend_url
+        log(f"Using backend URL: {backend_url}")
+
     if str(config.get("node_name") or "").strip():
+        save_node_config(config)
         return config
 
     node_name = prompt_for_node_name()
@@ -299,7 +357,7 @@ def run_script():
             # Check backend connectivity first
             try:
                 backend_res = requests.get(
-                    "http://127.0.0.1:8000/health", timeout=3)
+                    f"{BACKEND_URL}/health", timeout=3)
                 if backend_res.status_code != 200:
                     safe_ui(lambda: append_log(
                         f"❌ Backend server not responding (status: {backend_res.status_code})\n"))
@@ -538,7 +596,8 @@ def stop_agent():
 # =========================
 # UI
 # =========================
-ensure_node_name_config()
+NODE_CONFIG = ensure_node_name_config()
+BACKEND_URL = normalize_backend_url(NODE_CONFIG.get("backend_url"))
 
 root = tk.Tk()
 root.title("⚡ Node IDE")
@@ -620,6 +679,7 @@ terminal.pack(fill="x")
 # START
 # =========================
 log("UI started")
+log(f"Backend URL: {BACKEND_URL or '(not configured)'}")
 
 # Start agent
 start_agent()
